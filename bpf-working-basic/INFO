@@ -1,0 +1,7 @@
+1) compile, load and attach
+
+make clean && make
+bpftool prog load bpf-mark.o /sys/fs/bpf/mark-packets type cgroup/skb
+bpftool cgroup attach /sys/fs/cgroup/backup.slice egress pinned /sys/fs/bpf/mark-packets
+
+2) make sure tc rules are in place

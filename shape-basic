@@ -1,0 +1,63 @@
+#!/bin/sh
+#
+# PROVIDES:     basic example how to enable asymetric traffic shaping
+# REQUIRES:     iptables (or alike) rule to mangle packets or use different filter option
+#               tc command (e.g. iproute, iproute2 .. ) 
+#
+# How I think it works: 
+#      -------
+#
+#                ( qdisc htb 1: )
+#                       |
+#                       +--- > / filter 1: to match mangle mark 0x14 flowid 1:20 \
+#                       |      \ only traffic matched here will be going to 1:20 /              
+#                       |
+#	               / \
+#                +----*    *-----+
+#                |               |
+#                v               v
+#      { class htb 1:10 }   { class htb 1:20 }
+#               |                    |
+#      ( qdisc fq_codel )   { qdisc fq_codel }
+#
+#
+# (c) 2025 martin
+#
+
+IFACE="enp6s18"
+
+# iface's link speed
+LINK_SPEED="2.5gbit"
+
+# shape 1MB/s on upload from us to IP_DST
+SHAPE_SPEED="10mbps"
+IP_DST="172.31.1.14/32"
+
+# reset qdisk setup
+tc qdisc del dev $IFACE root
+
+# at root we need to have classfull discipline, defaulting to non-shaped class (shaped up to link speed)
+tc qdisc add dev $IFACE root handle 1: htb default 10 r2q 2048
+
+# attach two children, one :10 with no shape, :20 with a shape
+tc class add dev $IFACE parent 1: classid 1:10 htb rate $LINK_SPEED ceil $LINK_SPEED 
+tc class add dev $IFACE parent 1: classid 1:20 htb rate $SHAPE_SPEED ceil $SHAPE_SPEED
+
+# add queue discipline to each (fq_codel is used in RH by default, mimicking the same behavior under these disciplines)
+tc qdisc add dev $IFACE parent 1:10 fq_codel
+tc qdisc add dev $IFACE parent 1:20 fq_codel
+
+# place a filter downstream from root to match 1:20 qdisk
+#
+# This creates a problem /possibly/ - it does affect all packets to this dst including control ones. this has impact
+# on download speed (ingress) to us from this dst.
+#
+#tc filter add dev $IFACE parent 1:0 protocol ip prio 1 u32 match ip dst 172.31.1.14/32 flowid 1:20
+
+# use iptables and mangle/mark the packet
+# iptables require
+#
+#	iptables -t mangle -A POSTROUTING -d 172.31.1.14 -j MARK --set-mark 0x14
+#
+tc filter add dev $IFACE parent 1:0 protocol ip prio 1 handle 20 fw flowid 1:20
+
