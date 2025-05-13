@@ -1,8 +1,8 @@
 # Example of Linux traffic shaping
 
-Example of traffic shaping under Linux. Two approaches are shown
+Example of traffic shaping under Linux. Two approaches are shown:
 
-1) Use iptables to mark all packets to given source
+1) Use iptables to mark all packets for specific IP address
 2) Use cgroups and eBPF to mark only packets belonging to certain cgroups (v2)
 
 
