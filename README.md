@@ -10,6 +10,22 @@ Example of traffic shaping under Linux. Two approaches are shown:
 
 The 1) approach is hashed out in the script. The required iptables command is shown there.
 The 2) approach requires to compile bpf-mark.c and load the module. It's expected that given process that we want to shape is already in appropriate cgroup.
-In my test example I created SSH daemon listening on port 2222 in its own slice. Due to the way how PAM works I had to create special PAM files for this process so that spawn sessions don't end up in the different slice ( pam_systemd makes some "magic" there).
 
-**TODO**: maybe upload it here ?
+Script is shaping traffic to backup server (172.31.1.14) from any process belonging to backup.slice. 
+To test this we need to first create backup slice:
+
+Systemd file ````/etc/systemd/system/backup.slice````:
+````
+[Unit]
+Description=slice for backup users
+
+[Slice]
+CPUAccounting=true
+````
+Don't forget to do ````sytemctl daemon-reload````
+
+Now you can test the upload to a backup server:
+````
+systemd-run -t --slice=backup.slice scp /root/bigblob 172.31.1.14:/tmp
+````
+
